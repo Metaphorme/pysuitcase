@@ -11,6 +11,8 @@ setup(
     long_description=open('README.md', encoding='utf-8').read() if os.path.exists('README.md') else '',
     long_description_content_type="text/markdown",
     url="https://github.com/metaphorme/pysuitcase",
+    license="MIT",
+    license_file="LICENSE",
     entry_points={
         'console_scripts': [
             'pysuitcase = pysuitcase.cli:main',
