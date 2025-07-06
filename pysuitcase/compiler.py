@@ -20,7 +20,7 @@ def is_pyqt5_project(project_dir, app_folder, requirements_file):
         with open(req_path, 'r', encoding='utf-8') as f:
             for line in f:
                 if 'pyqt5' in line.lower():
-                    click.secho("PyQt5 project detected! Applying special launcher command.", fg='magenta')
+                    click.secho("PyQt5 project detected! Applying internal environment setup.", fg='magenta')
                     return True
     except FileNotFoundError:
         return False
@@ -81,10 +81,13 @@ setup(ext_modules=cythonize({files_repr}, language_level='3', quiet=True))
         click.secho("Original source files have been kept.", fg='green')
 
 
-def compile_launcher(project_dir, app_folder, main_script, python_version, arch, requirements_file, icon_path=None):
-    """编译一个简单、可靠的、永远带控制台的 C 语言启动器。"""
+def compile_launcher(project_dir, app_folder, main_script, python_version, arch, requirements_file, icon_path=None, no_window=False):
+    """根据选择编译 C 语言启动器，支持标准控制台模式和无窗口模式。"""
     click.echo("\n-------------------------------------")
-    click.secho("Compiling Simple & Reliable C Launcher...", fg='cyan', bold=True)
+    if no_window:
+        click.secho("Compiling Advanced (Windowless) C Launcher...", fg='cyan', bold=True)
+    else:
+        click.secho("Compiling Simple & Reliable C Launcher...", fg='cyan', bold=True)
 
     if not shutil.which("cl.exe") or not shutil.which("rc.exe"):
         click.secho("Error: 'cl.exe' or 'rc.exe' not found.", fg='red', bold=True)
@@ -92,6 +95,7 @@ def compile_launcher(project_dir, app_folder, main_script, python_version, arch,
     
     click.echo("Found 'cl.exe' and 'rc.exe'.")
 
+    # --- 资源文件处理 ---
     with pkg_resources.path('pysuitcase.templates', 'default.ico') as default_icon_p:
         if icon_path and os.path.exists(icon_path):
             final_icon_path = icon_path
@@ -104,47 +108,54 @@ def compile_launcher(project_dir, app_folder, main_script, python_version, arch,
     rc_command = ["rc.exe", "/fo", "app.res", "resource.rc"]
     subprocess.run(rc_command, cwd=project_dir, check=True, capture_output=True)
     
-    # 1. 准备 Python 命令的各个部分
-    python_executable_name = "python.exe"
+    # --- 1. 构建智能 Python 载荷 ---
     python_folder = f"python-{python_version}-embed-{arch}"
     module_name = main_script.replace('.py', '')
-    
-    # Python 解释器的相对路径
-    python_exe_rel_path = f"..\\{python_folder}\\{python_executable_name}"
-    # Python 解释器的调用器，包含 -u 无缓冲标志
-    python_invoker = f"{python_exe_rel_path} -u"
-    
-    # 要执行的 Python 代码
-    code = f"import os,sys; sys.path.append(os.getcwd()); import {module_name}; {module_name}.run()"
-    encoded = base64.b64encode(code.encode()).decode()
-    python_code = f"import base64; exec(base64.b64decode('{encoded}').decode())"
-    
-    # 2. 构建我们希望 cmd.exe 最终看到的完整命令
-    final_command = ""
+
+    py_payload_lines = [
+        "import os, sys, base64",
+        "sys.path.append(os.getcwd())",
+    ]
+
     if is_pyqt5_project(project_dir, app_folder, requirements_file):
-        qt_plugin_path = f"..\\{python_folder}\\Lib\\site-packages\\PyQt5\\Qt5\\plugins\\platforms"
-        # 组装 PyQt5 的命令
-        final_command = f'cd "{app_folder}" && set QT_QPA_PLATFORM_PLUGIN_PATH="{qt_plugin_path}" && {python_invoker} -c "{python_code}"'
-    else:
-        # 组装标准程序的命令
-        final_command = f'cd "{app_folder}" && {python_invoker} -c "{python_code}"'
-        
-    # 3. 为 C 语言的字符串字面量进行最终的、正确的转义
-    final_command_for_c_source = final_command.replace('\\', '\\\\').replace('"', '\\"')
-    click.echo(f"Launcher will execute: {final_command}")
+        # 计算相对路径，并为 Python 字符串正确转义
+        qt_plugin_path = os.path.join('..', python_folder, 'Lib', 'site-packages', 'PyQt5', 'Qt5', 'plugins').replace('\\', '\\\\')
+        py_payload_lines.append(f"os.environ['QT_QPA_PLATFORM_PLUGIN_PATH'] = r'{qt_plugin_path}'")
+
+    py_payload_lines.extend([
+        f"import {module_name}",
+        f"{module_name}.run()"
+    ])
     
-    # 4. 注入到 C 语言启动器模板
-    c_template_path = pkg_resources.files('pysuitcase.templates') / 'launcher.c'
+    py_payload = "; ".join(py_payload_lines)
+    encoded_payload = base64.b64encode(py_payload.encode()).decode()
+    
+    # --- 2. 构建简化的命令行 ---
+    python_exec_code = f"import base64, os; exec(base64.b64decode('{encoded_payload}').decode())"
+    python_exe_path = os.path.join('..', python_folder, 'python.exe')
+    
+    # 最终的命令行现在非常简单
+    final_command = f'{python_exe_path} -u -c "{python_exec_code}"'
+    click.echo(f"Launcher will execute from '{app_folder}': {final_command}")
+
+    # --- 3. 为 C 语言模板准备数据 ---
+    final_command_for_c = final_command.replace('\\', '\\\\').replace('"', '\\"')
+    app_folder_for_c = app_folder.replace('\\', '\\\\')
+
+    c_template_name = 'launcher-no-window.c' if no_window else 'launcher.c'
+    c_template_path = pkg_resources.files('pysuitcase.templates') / c_template_name
+    
     c_code = c_template_path.read_text(encoding='utf-8')
-    c_code = c_code.replace("{{COMMAND_STRING}}", final_command_for_c_source)
+    c_code = c_code.replace("{{COMMAND_STRING}}", final_command_for_c)
+    c_code = c_code.replace("{{APP_FOLDER_NAME}}", app_folder_for_c) # 新的替换
     
     build_c_path = os.path.join(project_dir, 'pysuitcase_launcher.c')
     with open(build_c_path, 'w', encoding='utf-8-sig') as f:
         f.write(c_code)
 
-    # 5. 编译
+    # --- 4. 编译启动器 ---
     exe_name = f"{os.path.basename(project_dir)}.exe"
-    subsystem = "/SUBSYSTEM:CONSOLE"
+    subsystem = "/SUBSYSTEM:WINDOWS" if no_window else "/SUBSYSTEM:CONSOLE"
     
     cl_command = [
         "cl.exe", "/nologo", "/O2", "/W3",
@@ -152,7 +163,7 @@ def compile_launcher(project_dir, app_folder, main_script, python_version, arch,
         "/link", subsystem
     ]
     
-    click.echo(f"Running C compiler for {exe_name}...")
+    click.echo(f"Running C compiler for {exe_name} with {subsystem}...")
     try:
         process = subprocess.run(cl_command, cwd=project_dir, check=True, capture_output=True, encoding='mbcs', errors='ignore')
     except subprocess.CalledProcessError as e:
@@ -161,6 +172,7 @@ def compile_launcher(project_dir, app_folder, main_script, python_version, arch,
         click.secho(e.stderr, fg='red')
         sys.exit(1)
 
+    # --- 5. 清理 ---
     click.echo("Cleaning up intermediate files...")
     files_to_cleanup = ['pysuitcase_launcher.c', 'pysuitcase_launcher.obj', 'app.res', 'resource.rc', 'app.ico']
     for filename in files_to_cleanup:

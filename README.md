@@ -1,6 +1,6 @@
 # PySuitcase
 
-**在 Windows 平台，像分发“绿色软件”一样轻松封装和部署您的 Python 应用程序。**
+**在 Windows 平台，像分发绿色软件一样轻松分发和部署您的 Python 应用程序。**
 
 PySuitcase 提供了一种全新的 Python 程序分发模式，专为 Windows 平台设计。它能够将您的 Python 项目打包成一个独立的文件夹，内部包含所有依赖和嵌入式的 Python 解释器，用户无需在本地安装 Python 或进行任何复杂的环境配置即可直接运行。
 
@@ -112,6 +112,7 @@ Enter the name of your main script (Default: app.py): gfn2nmr_gui.py     \<-- �
 Enter the name of your requirements file (Default: requirements.txt):    \<-- 依赖文件，默认在源代码文件夹下
 Do you want to use a PyPI mirror? (Recommended in some regions) [y/N]:
 Enter path to a custom .ico file (or press Enter for default):           \<-- 自定义图标
+Use windowless mode? [y/N]:                                              \<-- 是否使用无窗口模式
 ```
 
 在正式执行前，将列出所有的设置选项并进行二次确认。
@@ -137,6 +138,8 @@ pysuitcase C:\path\to\MyAwesomeApp --app-folder app --main-script app.py --encry
 ### 第 5 步：分发您的应用
 
 打包完成后，您的项目根目录 (`MyAwesomeApp/`) 就是一个可以独立运行的完整应用。将整个文件夹压缩，就可以分发给您的用户了！
+
+请注意，您的程序将在**源代码文件夹**目录下执行。
 
 **打包后的目录结构示例：（如果使用了代码加密）**
 

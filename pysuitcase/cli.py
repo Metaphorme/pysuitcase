@@ -8,7 +8,7 @@ from .script_downloader import download_and_run_ps_script, bootstrap_pip, instal
 from .compiler import compile_launcher, encrypt_code
 
 def _print_summary(params):
-    """打印一个美观的配置摘要。"""
+    """Prints a formatted summary of the configuration."""
     click.echo("\n-------------------------------------")
     click.secho("Final Configuration Summary:", fg='green', bold=True)
     click.echo(f"  - Project Directory:    {params.get('project_dir')}")
@@ -23,6 +23,7 @@ def _print_summary(params):
     click.echo(f"  - Requirements File:    {os.path.join(params.get('project_dir', ''), params.get('app_folder', ''), params.get('requirements_file', ''))}")
     click.echo(f"  - PyPI Mirror:          {params.get('mirror') or 'Not specified'}")
     click.echo(f"  - Custom Icon:          {params.get('icon') or 'Default'}")
+    click.secho(f"  - Launcher Mode:        {'Windowless' if params.get('no_window') else 'Console'}", fg='magenta')
     click.echo(f"  - Encrypt Source Code:  {'Yes' if params.get('encrypt') else 'No'}")
     if params.get('encrypt'):
         fg_color = 'red' if params.get('delete_source_on_encrypt') else 'green'
@@ -30,7 +31,7 @@ def _print_summary(params):
     click.echo("-------------------------------------\n")
 
 def execute_build(params):
-    """执行打包的核心逻辑。"""
+    """Executes the core packaging logic."""
     _print_summary(params)
     if params.get('_is_interactive'):
         if not click.confirm("Proceed with this configuration?", default=True, abort=True):
@@ -54,30 +55,46 @@ def execute_build(params):
             python_version=params['python_version'],
             arch=params['arch'],
             requirements_file=params['requirements_file'],
-            icon_path=params['icon']
+            icon_path=params['icon'],
+            no_window=params.get('no_window', False)
         )
 
 def generate_reproducible_command(params):
-    """根据参数生成可以重复使用的命令行指令。"""
-    command = [f"pysuitcase {params['project_dir']}"]
-    direct_mode_keys = ['app_folder', 'main_script', 'requirements_file']
-    for key in direct_mode_keys:
-        if params.get(key) is not None and key in params:
-             command.append(f"--{key.replace('_', '-')} {shlex.quote(str(params[key]))}")
-    for key, value in params.items():
-        if key in ['project_dir', '_is_interactive'] + direct_mode_keys or value is None or value is False:
-            continue
-        if isinstance(value, bool) and value is True:
-            if key == 'delete_source_on_encrypt':
-                command.append(click.style(f"--{key.replace('_', '-')}", fg='red', bold=True))
-            else:
-                command.append(f"--{key.replace('_', '-')}")
-        elif not isinstance(value, bool):
-            command.append(f"--{key.replace('_', '-')} {shlex.quote(str(value))}")
+    """Generates a reproducible command line string from parameters."""
+    def win_quote(value):
+        """Quotes a string for the Windows command line if it contains spaces."""
+        s = str(value)
+        if ' ' in s and not (s.startswith('"') and s.endswith('"')):
+            return f'"{s}"'
+        # Return the string as-is if it has no spaces, avoiding unwanted quotes.
+        return s.strip("'")
+
+    # Start with the base command and the project directory
+    command = [f"pysuitcase {win_quote(params['project_dir'])}"]
+
+    # Handle all valued options
+    valued_options = [
+        'app_folder', 'main_script', 'requirements_file', 'python_version', 
+        'arch', 'icon', 'mirror'
+    ]
+    for key in valued_options:
+        value = params.get(key)
+        if value is not None:
+            command.append(f"--{key.replace('_', '-')} {win_quote(value)}")
+            
+    # Handle all boolean flag options explicitly
+    if params.get('encrypt'):
+        command.append('--encrypt')
+    if params.get('delete_source_on_encrypt'):
+        # Keep special styling for this dangerous flag
+        command.append(click.style('--delete-source-on-encrypt', fg='red', bold=True))
+    if params.get('no_window'):
+        command.append('--no-window')
+        
     return ' '.join(command)
 
 def run_interactive_mode(params):
-    """交互式引导用户填写所有信息。"""
+    """Guides the user through all options interactively."""
     click.echo("Entering interactive mode...")
     params['project_dir'] = click.prompt("Enter the path to your project's root directory", type=click.Path(exists=True, file_okay=False, resolve_path=True))
     params['encrypt'] = click.confirm("Encrypt Python source code for protection?", default=False)
@@ -109,6 +126,10 @@ def run_interactive_mode(params):
         params['icon'] = icon_path_str
     else:
         params['icon'] = None
+    
+    # Corrected placement for the 'no_window' prompt
+    params['no_window'] = click.confirm("Use windowless mode?", default=False)
+
     params['_is_interactive'] = True
     execute_build(params)
     click.secho("\n🎉 PySuitcase packaging process completed successfully! 🎉", fg='cyan', bold=True)
@@ -116,12 +137,12 @@ def run_interactive_mode(params):
     click.echo(generate_reproducible_command(params))
 
 def run_direct_mode(params):
-    """直接模式，验证参数后直接执行。"""
+    """Runs directly with provided parameters after validation."""
     if params.get('encrypt') and (params.get('python_version') is not None or params.get('arch') is not None):
         click.secho("Error: When using --encrypt, you cannot specify --python-version or --arch.", fg='red', bold=True)
         click.secho("Encryption requires using the host's Python environment.", fg='yellow'); sys.exit(1)
     
-    # 填充直接模式下的默认值
+    # Populate defaults for direct mode
     if params.get('app_folder') is None: params['app_folder'] = 'app'
     if params.get('main_script') is None: params['main_script'] = 'app.py'
     if params.get('requirements_file') is None: params['requirements_file'] = 'requirements.txt'
@@ -141,6 +162,7 @@ def run_direct_mode(params):
 @click.option('--mirror', default=None, help='PyPI mirror URL.')
 @click.option('--encrypt', is_flag=True, help='Encrypt source code. Locks Python version to host version.')
 @click.option('--delete-source-on-encrypt', is_flag=True, help='[DANGEROUS] Delete .py source files after encryption.')
+@click.option('--no-window', is_flag=True, help='Use a windowless launcher for the final executable.')
 @click.pass_context
 def main(ctx, **kwargs):
     """
