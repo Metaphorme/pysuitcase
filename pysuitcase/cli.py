@@ -8,7 +8,7 @@ from .script_downloader import download_and_run_ps_script, bootstrap_pip, instal
 from .compiler import compile_launcher, encrypt_code
 
 def _print_summary(params):
-    """Prints a formatted summary of the configuration."""
+    """打印格式化的配置摘要。"""
     click.echo("\n-------------------------------------")
     click.secho("Final Configuration Summary:", fg='green', bold=True)
     click.echo(f"  - Project Directory:    {params.get('project_dir')}")
@@ -31,7 +31,7 @@ def _print_summary(params):
     click.echo("-------------------------------------\n")
 
 def execute_build(params):
-    """Executes the core packaging logic."""
+    """执行核心打包逻辑。"""
     _print_summary(params)
     if params.get('_is_interactive'):
         if not click.confirm("Proceed with this configuration?", default=True, abort=True):
@@ -60,19 +60,19 @@ def execute_build(params):
         )
 
 def generate_reproducible_command(params):
-    """Generates a reproducible command line string from parameters."""
+    """根据参数生成可复现的命令行字符串。"""
     def win_quote(value):
-        """Quotes a string for the Windows command line if it contains spaces."""
+        """如果字符串包含空格，则为其添加引号以用于 Windows 命令行。"""
         s = str(value)
         if ' ' in s and not (s.startswith('"') and s.endswith('"')):
             return f'"{s}"'
-        # Return the string as-is if it has no spaces, avoiding unwanted quotes.
+        # 如果字符串没有空格，则按原样返回，避免不必要的引号。
         return s.strip("'")
 
-    # Start with the base command and the project directory
+    # 从基本命令和项目目录开始
     command = [f"pysuitcase {win_quote(params['project_dir'])}"]
 
-    # Handle all valued options
+    # 处理所有带值的选项
     valued_options = [
         'app_folder', 'main_script', 'requirements_file', 'python_version', 
         'arch', 'icon', 'mirror'
@@ -82,11 +82,11 @@ def generate_reproducible_command(params):
         if value is not None:
             command.append(f"--{key.replace('_', '-')} {win_quote(value)}")
             
-    # Handle all boolean flag options explicitly
+    # 显式处理所有布尔标志选项
     if params.get('encrypt'):
         command.append('--encrypt')
     if params.get('delete_source_on_encrypt'):
-        # Keep special styling for this dangerous flag
+        # 为这个危险的标志保留特殊样式
         command.append(click.style('--delete-source-on-encrypt', fg='red', bold=True))
     if params.get('no_window'):
         command.append('--no-window')
@@ -94,7 +94,7 @@ def generate_reproducible_command(params):
     return ' '.join(command)
 
 def run_interactive_mode(params):
-    """Guides the user through all options interactively."""
+    """以交互方式引导用户完成所有选项。"""
     click.echo("Entering interactive mode...")
     params['project_dir'] = click.prompt("Enter the path to your project's root directory", type=click.Path(exists=True, file_okay=False, resolve_path=True))
     params['encrypt'] = click.confirm("Encrypt Python source code for protection?", default=False)
@@ -127,7 +127,7 @@ def run_interactive_mode(params):
     else:
         params['icon'] = None
     
-    # Corrected placement for the 'no_window' prompt
+    # 修正了 'no_window' 提示的位置
     params['no_window'] = click.confirm("Use windowless mode?", default=False)
 
     params['_is_interactive'] = True
@@ -137,12 +137,12 @@ def run_interactive_mode(params):
     click.echo(generate_reproducible_command(params))
 
 def run_direct_mode(params):
-    """Runs directly with provided parameters after validation."""
+    """验证后直接使用提供的参数运行。"""
     if params.get('encrypt') and (params.get('python_version') is not None or params.get('arch') is not None):
         click.secho("Error: When using --encrypt, you cannot specify --python-version or --arch.", fg='red', bold=True)
         click.secho("Encryption requires using the host's Python environment.", fg='yellow'); sys.exit(1)
     
-    # Populate defaults for direct mode
+    # 为直接模式填充默认值
     if params.get('app_folder') is None: params['app_folder'] = 'app'
     if params.get('main_script') is None: params['main_script'] = 'app.py'
     if params.get('requirements_file') is None: params['requirements_file'] = 'requirements.txt'
@@ -166,7 +166,7 @@ def run_direct_mode(params):
 @click.pass_context
 def main(ctx, **kwargs):
     """
-    Packages a Python project from PROJECT_DIR into a standalone executable.
+    将 PROJECT_DIR 中的 Python 项目打包成一个独立的可执行文件。
     """
     params = kwargs
     host_python_version = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
