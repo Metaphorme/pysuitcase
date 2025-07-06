@@ -32,7 +32,7 @@ PySuitcase offers a novel solution for distributing Python programs on the Windo
     In your chosen environment, install PySuitcase via GitHub:
 
     ```bash
-    pip install git+[https://github.com/metaphorme/pysuitcase.git](https://github.com/metaphorme/pysuitcase.git)
+    pip install git+https://github.com/metaphorme/pysuitcase.git
     ```
 
 ### Step 2: Launch the Dedicated Command-Line Tool
