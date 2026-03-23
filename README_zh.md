@@ -185,4 +185,3 @@ MyAwesomeApp/
 ## 🧑‍💻 开发人员
 
   * **刘翯齐 (Heqi Liu)** - [GitHub @metaphorme](https://github.com/metaphorme/)
-  * **高利明 (Liming Gao)** - [GitHub @nanyeglm](https://github.com/nanyeglm/)

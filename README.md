@@ -187,4 +187,3 @@ The development of this project was made possible by the support of the followin
 ## 🧑‍💻 Developers
 
   * **刘翯齐 (Heqi Liu)** - [GitHub @metaphorme](https://github.com/metaphorme/)
-  * **高利明 (Liming Gao)** - [GitHub @nanyeglm](https://github.com/nanyeglm/)
